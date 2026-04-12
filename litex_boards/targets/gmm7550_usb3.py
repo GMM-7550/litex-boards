@@ -217,7 +217,7 @@ class USB(LiteXModule):
 
         # ULPI (USB 2.0 PHY) -----------------------------------------------------------------------
         self.ulpi = ulpi = platform.request("ulpi")
-        if 'ulpi' in usb_options:
+        if '2' in usb_options:
             pass
         else:
             self.comb += [ulpi.rst_n.eq(0)] # keep PHY in reset
