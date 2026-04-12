@@ -240,7 +240,7 @@ class BaseSoC(SoCCore):
         with_async_ram  = False,
         usb_options     = [],
         **kwargs):
-        platform = gmm7550.Platform(toolchain)
+        platform = gmm7550.Platform(toolchain, yosys_bin="yosys -m ghdl")
 
         platform.add_extension(p4)
 

@@ -194,8 +194,8 @@ class Platform(CologneChipPlatform):
     default_clk_name   = "ser_clk"
     default_clk_period = 1e9/100e6
 
-    def __init__(self, toolchain="peppercorn"):
-        CologneChipPlatform.__init__(self, "CCGM1A1", _io, _connectors, toolchain=toolchain)
+    def __init__(self, toolchain="peppercorn", **kwargs):
+        CologneChipPlatform.__init__(self, "CCGM1A1", _io, _connectors, toolchain=toolchain, **kwargs)
 
     def create_programmer(self):
         return OpenFPGALoader(cable="dirtyJtag")
