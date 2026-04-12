@@ -201,11 +201,19 @@ class USB(LiteXModule):
         # USB 1.1 transceiver ----------------------------------------------------------------------
         if '1' in usb_options:
             self.usb1 = usb1 = platform.request("usb1")
-            self.ctrl = ctrl = CSRStorage(2, description="USB 1.1 transceiver control signals: CON, SUS")
-            self.stat = stat = CSRStatus(1, description="USB 1.1 transceiver battery detected")
-            self.comb += [usb1.con.eq(ctrl.storage[1]), usb1.sus.eq(~ctrl.storage[0])]
-            self.comb += [stat.status[0].eq(usb1.busdet)]
-            self.comb += [usb1.oe_n.eq(0)] # do not transmit
+            self.ctrl = ctrl = CSRStorage(5, description="USB 1.1 outputs: SUS_N, CON, OE, VM, VP")
+            self.stat = stat = CSRStatus(4, description="USB 1.1 inputs: VBUS, RCV, VM, VP")
+
+            self.comb += usb1.sus.eq(~ctrl.storage[4])
+            self.comb += usb1.con.eq(ctrl.storage[3])
+            self.comb += usb1.oe_n.eq(~ctrl.storage[2])
+            self.comb += usb1.vm.eq(ctrl.storage[1])
+            self.comb += usb1.vp.eq(ctrl.storage[0])
+
+            self.comb += stat.status[3].eq(usb1.busdet)
+            self.comb += stat.status[2].eq(usb1.rcv)
+            self.comb += stat.status[1].eq(usb1.vm)
+            self.comb += stat.status[0].eq(usb1.vp)
 
         # ULPI (USB 2.0 PHY) -----------------------------------------------------------------------
         self.ulpi = ulpi = platform.request("ulpi")
