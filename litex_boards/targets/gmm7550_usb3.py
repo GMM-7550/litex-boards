@@ -223,6 +223,13 @@ class USB(LiteXModule):
             self.comb += [ulpi.rst_n.eq(0)] # keep PHY in reset
                                             # D+/D- signals are connected to USB 1.1 transceiver
 
+        # USB 3 (SuperSpeed with SerDes) -----------------------------------------------------------
+        if '3' in usb_options:
+            hdl_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
+                                   "gmm7550")
+            platform.add_source(os.path.join(hdl_dir, "usb3_test.vhd"))
+            self.specials += Instance("usb3_test")
+
 # BaseSoC ------------------------------------------------------------------------------------------
 
 class BaseSoC(SoCCore):
