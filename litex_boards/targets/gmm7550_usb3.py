@@ -198,6 +198,9 @@ class USB(LiteXModule):
             self.comb += [pd.src_en.eq(0), pd.disc.eq(0)] # disable Source and Discharge
             soc.add_i2c_master(name="i2c", pads=pd, with_irq=True)
 
+        if ('1' in usb_options) and ('2' in usb_options):
+            raise ValueError("USB options 1 and 2 are mutually exclusive.")
+
         # USB 1.1 transceiver ----------------------------------------------------------------------
         if '1' in usb_options:
             self.usb1 = usb1 = platform.request("usb1")
