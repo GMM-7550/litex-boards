@@ -10,6 +10,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 from migen import *
+from migen.fhdl.specials import Tristate
 
 from litex.gen import *
 
@@ -210,8 +211,8 @@ class USB(LiteXModule):
             self.comb += usb1.sus.eq(~ctrl.storage[4])
             self.comb += usb1.con.eq(ctrl.storage[3])
             self.comb += usb1.oe_n.eq(~ctrl.storage[2])
-            self.comb += usb1.vm.eq(ctrl.storage[1])
-            self.comb += usb1.vp.eq(ctrl.storage[0])
+            self.specials += Tristate(usb1.vm, ctrl.storage[1], ctrl.storage[2])
+            self.specials += Tristate(usb1.vp, ctrl.storage[0], ctrl.storage[2])
 
             self.comb += stat.status[3].eq(usb1.busdet)
             self.comb += stat.status[2].eq(usb1.rcv)
