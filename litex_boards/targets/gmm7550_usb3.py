@@ -211,13 +211,19 @@ class USB(LiteXModule):
             self.comb += usb1.sus.eq(~ctrl.storage[4])
             self.comb += usb1.con.eq(ctrl.storage[3])
             self.comb += usb1.oe_n.eq(~ctrl.storage[2])
-            self.specials += Tristate(usb1.vm, ctrl.storage[1], ctrl.storage[2])
-            self.specials += Tristate(usb1.vp, ctrl.storage[0], ctrl.storage[2])
+
+            vp_i = Signal(); vm_i = Signal()
+            self.specials += Tristate(usb1.vm,
+                                      o = ctrl.storage[1], oe = ctrl.storage[2],
+                                      i = vm_i)
+            self.specials += Tristate(usb1.vp,
+                                      o = ctrl.storage[0], oe = ctrl.storage[2],
+                                      i = vp_i)
 
             self.comb += stat.status[3].eq(usb1.busdet)
             self.comb += stat.status[2].eq(usb1.rcv)
-            self.comb += stat.status[1].eq(usb1.vm)
-            self.comb += stat.status[0].eq(usb1.vp)
+            self.comb += stat.status[1].eq(vm_i)
+            self.comb += stat.status[0].eq(vp_i)
 
         # ULPI (USB 2.0 PHY) -----------------------------------------------------------------------
         self.ulpi = ulpi = platform.request("ulpi")
