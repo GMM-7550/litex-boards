@@ -239,7 +239,7 @@ class USB(LiteXModule):
 class BaseSoC(SoCCore):
     def __init__(self, sys_clk_freq=25e6, toolchain="peppercorn",
         with_l2_cache   = False,
-        with_led_chaser = True,
+        with_led_chaser = False,
         with_spi_flash  = False,
         with_async_ram  = False,
         usb_options     = [],
