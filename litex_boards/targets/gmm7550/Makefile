@@ -30,6 +30,7 @@ $(WORK_LIB): $(VHDL_FILES) $(CC_LIB)
 
 clean:
 	$(RM) $(TARGET).v
+	$(RM) *.o
 	$(RM) $(WORK_LIB)
 	$(RM) $(CC_LIB)
 
