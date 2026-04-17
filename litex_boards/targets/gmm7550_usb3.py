@@ -237,7 +237,7 @@ class USB(LiteXModule):
         if '3' in usb_options:
             hdl_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                    "gmm7550")
-            platform.add_source(os.path.join(hdl_dir, "usb3_test.vhd"))
+            platform.add_source(os.path.join(hdl_dir, "usb3_test.v"))
             self.specials += Instance("usb3_test")
 
 # BaseSoC ------------------------------------------------------------------------------------------
@@ -250,8 +250,9 @@ class BaseSoC(SoCCore):
         with_async_ram  = False,
         usb_options     = [],
         **kwargs):
-        platform = gmm7550.Platform(toolchain, yosys_bin="yosys -m ghdl",
-                                    yosys_read_commands=dict(vhdl="ghdl -read --std=08"))
+        platform = gmm7550.Platform(toolchain)
+        # platform = gmm7550.Platform(toolchain, yosys_bin="yosys -m ghdl",
+        #                             yosys_read_commands=dict(vhdl="ghdl -read --std=08"))
 
         platform.add_extension(p4)
 

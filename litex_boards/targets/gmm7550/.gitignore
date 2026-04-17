@@ -1,0 +1,3 @@
+work-*.cf
+*.o
+usb3_test.v
