@@ -238,7 +238,26 @@ class USB(LiteXModule):
             hdl_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                    "gmm7550")
             platform.add_source(os.path.join(hdl_dir, "usb3_test.v"))
-            self.specials += Instance("usb3_test")
+
+            name = "serdes_regs"
+            reg_bus = wishbone.Interface(data_width=soc.bus.data_width)
+            soc.bus.add_slave(name, reg_bus, SoCRegion(size=512*4, mode="rw", cached=False))
+            soc.check_if_exists(name)
+            soc.logger.info("SERDES Registers {} {} {}.".format(
+                colorer(name),
+                colorer("added", color="green"),
+                soc.bus.regions[name]))
+            self.specials += Instance("usb3_test",
+                                      i_wb_clk_i = ClockSignal(),
+                                      i_wb_rst_i = ResetSignal(),
+                                      i_wb_adr_i = reg_bus.adr,
+                                      i_wb_dat_i = reg_bus.dat_w,
+                                      o_wb_dat_o = reg_bus.dat_r,
+                                      i_wb_cyc_i = reg_bus.cyc,
+                                      i_wb_stb_i = reg_bus.stb,
+                                      i_wb_sel_i = reg_bus.sel,
+                                      i_wb_we_i  = reg_bus.we,
+                                      o_wb_ack_o = reg_bus.ack);
 
 # BaseSoC ------------------------------------------------------------------------------------------
 
