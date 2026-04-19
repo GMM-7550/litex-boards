@@ -239,6 +239,16 @@ class USB(LiteXModule):
                                    "gmm7550")
             platform.add_source(os.path.join(hdl_dir, "usb3_test.v"))
 
+            dbg_leds = platform.request_all("leds")
+            rst_done = Signal();
+            tx_rst_done = Signal();
+            rx_rst_done = Signal();
+
+            self.comb += [dbg_leds[0].eq(rst_done),
+                          dbg_leds[1].eq(tx_rst_done),
+                          dbg_leds[2].eq(rx_rst_done),
+                          dbg_leds[3].eq(0)]
+
             name = "serdes_regs"
             reg_bus = wishbone.Interface(data_width=soc.bus.data_width)
             soc.bus.add_slave(name, reg_bus, SoCRegion(size=512*4, mode="rw", cached=False))
@@ -257,7 +267,12 @@ class USB(LiteXModule):
                                       i_wb_stb_i = reg_bus.stb,
                                       i_wb_sel_i = reg_bus.sel,
                                       i_wb_we_i  = reg_bus.we,
-                                      o_wb_ack_o = reg_bus.ack);
+                                      o_wb_ack_o = reg_bus.ack,
+
+                                      o_tx_reset_done_o  = tx_rst_done,
+                                      o_rx_reset_done_o  = rx_rst_done,
+                                      o_serdes_reset_done_o = rst_done,
+                                      );
 
 # BaseSoC ------------------------------------------------------------------------------------------
 

@@ -6,7 +6,7 @@ VHDL_STANDARD := 08
 
 CC_LIB_FILES := gatemate_pkg.vhd
 
-VHDL_FILES := wb_ccserdes_reg.vhd
+VHDL_FILES := wb_ccserdes_reg.vhd serdes_reset_controller.vhd
 VHDL_FILES += $(addsuffix .vhd,$(TARGETS))
 
 CC_LIB_NAME := cc
