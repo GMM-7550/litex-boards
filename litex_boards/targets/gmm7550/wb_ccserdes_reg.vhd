@@ -10,7 +10,7 @@ entity wb_ccserdes_reg is
   port (
     wb_clk_i      : in  std_logic;
     wb_rst_i      : in  std_logic;
-    wb_adr_i      : in  std_logic_vector( 9 downto 0);
+    wb_adr_i      : in  std_logic_vector( 7 downto 0);
     wb_dat_i      : in  std_logic_vector(31 downto 0);
     wb_dat_o      : out std_logic_vector(31 downto 0);
     wb_sel_i      : in  std_logic_vector( 3 downto 0);
@@ -36,7 +36,7 @@ architecture rtl of wb_ccserdes_reg is
   signal wb_fsm_next  : wb_fsm_state_t;
 
   signal we_reg   : std_logic;
-  signal adr_reg  : std_logic_vector(9 downto 0);
+  signal adr_reg  : std_logic_vector(7 downto 0);
   signal adr_reg_load : std_logic;
 
   signal wsel_reg : std_logic_vector( 1 downto 0);
@@ -172,7 +172,7 @@ begin
 
   regfile_clk_o <= wb_clk_i;
 
-  regfile_adr_o <= adr_reg(9 downto 2);
+  regfile_adr_o <= adr_reg;
   regfile_dat_o <= wdat_reg;
   regfile_msk_o(15 downto 8) <= (others => '1') when wsel_reg(1) = '1' else (others => '0');
   regfile_msk_o( 7 downto 0) <= (others => '1') when wsel_reg(0) = '1' else (others => '0');
