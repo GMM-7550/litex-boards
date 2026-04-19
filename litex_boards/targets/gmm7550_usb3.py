@@ -151,17 +151,17 @@ class AsyncSRAM(LiteXModule):
         self.bus = wb
         self.data_width = 32
         self.size = size
-        self.specials += Instance("issiram",
-                                  i_clk = clk,
-                                  i_rst = rst,
-                                  i_wbs_stb_i = self.bus.stb,
-                                  i_wbs_cyc_i = self.bus.cyc,
-                                  i_wbs_adr_i = self.bus.adr,
-                                  i_wbs_we_i  = self.bus.we,
-                                  i_wbs_sel_i = self.bus.sel,
-                                  i_wbs_dat_i = self.bus.dat_w,
-                                  o_wbs_ack_o = self.bus.ack,
-                                  o_wbs_dat_o = self.bus.dat_r,
+        self.specials += Instance("cy7c1049",
+                                  i_wb_clk_i = clk,
+                                  i_wb_rst_i = rst,
+                                  i_wb_stb_i = self.bus.stb,
+                                  i_wb_cyc_i = self.bus.cyc,
+                                  i_wb_adr_i = self.bus.adr,
+                                  i_wb_we_i  = self.bus.we,
+                                  i_wb_sel_i = self.bus.sel,
+                                  i_wb_dat_i = self.bus.dat_w,
+                                  o_wb_ack_o = self.bus.ack,
+                                  o_wb_dat_o = self.bus.dat_r,
                                   o_mem_ce_n = pins.ce,
                                   o_mem_oe_n = pins.oe,
                                   o_mem_we_n = pins.we,
@@ -170,7 +170,7 @@ class AsyncSRAM(LiteXModule):
                                   )
         hdl_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                "gmm7550")
-        platform.add_source(os.path.join(hdl_dir, "issiram.v"))
+        platform.add_source(os.path.join(hdl_dir, "cy7c1049.v"))
 
 def add_async_ram(soc, platform, name, origin, size):
     ram_bus = wishbone.Interface(data_width=soc.bus.data_width)
