@@ -37,10 +37,10 @@ from litex.soc.cores.gpio import GPIOOut
 # P4/J4 (South IO)
 p4 = [
     # LEDs (green)
-    ("user_led_n", 0, Pins("P4:5" )), # D10
-    ("user_led_n", 1, Pins("P4:9" )), # D9
-    ("user_led_n", 2, Pins("P4:6" )), # D8
-    ("user_led_n", 3, Pins("P4:10")), # D7
+    ("leds", 0, Pins("P4:5",    # D10
+                     "P4:9",    # D9
+                     "P4:6",    # D8
+                     "P4:10")), # D7
 
     # Buttons
     ("btn_n", 0, Pins("P4:3")), # SW2, A
@@ -287,7 +287,7 @@ class BaseSoC(SoCCore):
         # Leds -------------------------------------------------------------------------------------
         if with_led_chaser:
             self.leds = LedChaser(
-                pads         = platform.request_all("user_led_n"),
+                pads         = platform.request_all("leds"),
                 sys_clk_freq = sys_clk_freq)
 
         led_red_n = platform.request("led_red_n")
