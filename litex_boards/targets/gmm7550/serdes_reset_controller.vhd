@@ -37,8 +37,8 @@ architecture rtl of serdes_reset_controller is
   signal rst_steps    : std_logic_vector(3 downto 0);
 begin
 
-  -- clk <= pll_clk_i;
-  clk <= clk_i;
+  clk <= pll_clk_i;
+  -- clk <= clk_i;
 
   p_pll_rst: process(clk_i) is
   begin
