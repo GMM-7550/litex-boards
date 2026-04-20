@@ -505,6 +505,7 @@ package gatemate is
 
   component CC_SERDES
     generic (
+      SERDES_ENABLE            : integer range 0 to 1     := 0;
       TX_SEL_PRE               : integer range 0 to 31    := 0;
       TX_SEL_POST              : integer range 0 to 31    := 0;
       TX_AMP                   : integer range 0 to 31    := 15;

@@ -107,6 +107,9 @@ begin
 
   i_serdes: component cc_serdes
     generic map (
+      serdes_enable => 1,
+      pll_en_adpll_ctrl => 1,
+      pll_ref_sel => 1, -- LVDS (0 -- single ended)
       tx_power_down_n => 1,
       rx_power_down_n => 1
       )
