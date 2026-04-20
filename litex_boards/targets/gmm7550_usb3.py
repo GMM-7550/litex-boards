@@ -251,7 +251,7 @@ class USB(LiteXModule):
 
             name = "serdes_regs"
             reg_bus = wishbone.Interface(data_width=soc.bus.data_width)
-            soc.bus.add_slave(name, reg_bus, SoCRegion(size=512*4, mode="rw", cached=False))
+            soc.bus.add_slave(name, reg_bus, SoCRegion(size=512, mode="rw", cached=False))
             soc.check_if_exists(name)
             soc.logger.info("SERDES Registers {} {} {}.".format(
                 colorer(name),
