@@ -90,7 +90,7 @@ p4 = [
 # Memory Module (SRAM and SPI) on P2 (North) ------------------------------------
 
 p2 = [
-    ("spiflash", 0,
+    ("p2_spiflash", 0,
         Subsignal("cs_n", Pins("P2:3")),
         Subsignal("clk",  Pins("P2:6")),
         Subsignal("mosi", Pins("P2:11")), # D0
@@ -98,7 +98,7 @@ p2 = [
         Subsignal("wp",   Pins("P2:9")),  # D2
         Subsignal("hold", Pins("P2:4")),  # D3
     ),
-    ("spiflash4x", 0,
+    ("p2_spiflash4x", 0,
         Subsignal("cs_n", Pins("P2:3")),
         Subsignal("clk",  Pins("P2:6")),
         Subsignal("dq",   Pins("P2:11 P2:5 P2:9 P2:4")),
@@ -195,8 +195,12 @@ class USB(LiteXModule):
         # Power Delivery Control -------------------------------------------------------------------
         if 'pd' in usb_options:
             self.pd = pd = platform.request("pd")
-            self.comb += pd.en_n.eq(ResetSignal())
-            self.comb += [pd.src_en.eq(0), pd.disc.eq(0)] # disable Source and Discharge
+            self.pwr = pwr = CSRStorage(2, description="USB PD power discharge and source control")
+            self.pd_alert = pd_alert = CSRStatus(1, description="USB PD controller alert")
+            self.comb += [pd.en_n.eq(ResetSignal()),
+                          pd.src_en.eq(pwr.storage[0]),
+                          pd.disc.eq(pwr.storage[1]),
+                          pd_alert.status[0].eq(~pd.alert_n)]
             soc.add_i2c_master(name="i2c", pads=pd, with_irq=True)
 
         if ('1' in usb_options) and ('2' in usb_options):
@@ -228,7 +232,7 @@ class USB(LiteXModule):
         # ULPI (USB 2.0 PHY) -----------------------------------------------------------------------
         self.ulpi = ulpi = platform.request("ulpi")
         if '2' in usb_options:
-            pass
+            pass # Not implemented yet
         else:
             self.comb += [ulpi.rst_n.eq(0)] # keep PHY in reset
                                             # D+/D- signals are connected to USB 1.1 transceiver
@@ -240,14 +244,21 @@ class USB(LiteXModule):
             platform.add_source(os.path.join(hdl_dir, "usb3_test.v"))
 
             dbg_leds = platform.request_all("leds")
-            rst_done = Signal();
-            tx_rst_done = Signal();
-            rx_rst_done = Signal();
+
+            dbg = Signal(5)
+            testpoints = platform.request("p2_spiflash4x")
+
+            rst_done = Signal()
+            tx_rst_done = Signal()
+            rx_rst_done = Signal()
+
+            wb_clk = ClockSignal()
+            wb_rst = ResetSignal()
 
             self.comb += [dbg_leds[0].eq(rst_done),
                           dbg_leds[1].eq(tx_rst_done),
                           dbg_leds[2].eq(rx_rst_done),
-                          dbg_leds[3].eq(0)]
+                          dbg_leds[3].eq(wb_rst)]
 
             name = "serdes_regs"
             reg_bus = wishbone.Interface(data_width=soc.bus.data_width)
@@ -258,8 +269,8 @@ class USB(LiteXModule):
                 colorer("added", color="green"),
                 soc.bus.regions[name]))
             self.specials += Instance("usb3_test",
-                                      i_wb_clk_i = ClockSignal(),
-                                      i_wb_rst_i = ResetSignal(),
+                                      i_wb_clk_i = wb_clk, # ClockSignal(),
+                                      i_wb_rst_i = wb_rst, # ResetSignal(),
                                       i_wb_adr_i = reg_bus.adr,
                                       i_wb_dat_i = reg_bus.dat_w,
                                       o_wb_dat_o = reg_bus.dat_r,
@@ -269,10 +280,18 @@ class USB(LiteXModule):
                                       i_wb_we_i  = reg_bus.we,
                                       o_wb_ack_o = reg_bus.ack,
 
+                                      o_dbg_o = dbg,
                                       o_tx_reset_done_o  = tx_rst_done,
                                       o_rx_reset_done_o  = rx_rst_done,
                                       o_serdes_reset_done_o = rst_done,
                                       );
+
+            self.comb += [testpoints.cs_n.eq(1),
+                          testpoints.clk.eq(dbg[4]),
+                          testpoints.dq[0].eq(dbg[0]),
+                          testpoints.dq[1].eq(dbg[1]),
+                          testpoints.dq[2].eq(dbg[2]),
+                          testpoints.dq[3].eq(dbg[3])]
 
 # BaseSoC ------------------------------------------------------------------------------------------
 

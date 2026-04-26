@@ -31,27 +31,28 @@ end entity serdes_reset_controller;
 
 architecture rtl of serdes_reset_controller is
   signal clk          : std_logic;
-  signal pll_rst      : std_logic;
+  -- signal pll_rst      : std_logic;
   signal rst_sync     : std_logic_vector(1 downto 0); -- resynchronizer to pll_clk
   signal rst_master   : std_logic;
   signal rst_steps    : std_logic_vector(3 downto 0);
 begin
 
-  clk <= pll_clk_i;
-  -- clk <= clk_i;
+  -- clk <= pll_clk_i;
+  clk <= clk_i;
 
-  p_pll_rst: process(clk_i) is
+  -- p_pll_rst: process(clk_i) is
+  -- begin
+  --   if rising_edge(clk_i) then
+  --     pll_rst <= rst_i;
+  --   end if;
+  -- end process p_pll_rst;
+
+  -- pll_reset_o <= pll_rst;
+  pll_reset_o <= rst_i;
+
+  p_rst_sync: process(rst_i, clk) is
   begin
-    if rising_edge(clk_i) then
-      pll_rst <= rst_i;
-    end if;
-  end process p_pll_rst;
-
-  pll_reset_o <= pll_rst;
-
-  p_rst_sync: process(pll_rst, clk) is
-  begin
-    if pll_rst = '1' then
+    if rst_i = '1' then
       rst_sync <= (others => '1');
     elsif rising_edge(clk) then
       rst_sync <= rst_sync(rst_sync'left-1 downto 0) & "0";
