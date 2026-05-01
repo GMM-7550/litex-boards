@@ -1,5 +1,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 library cc;
 use cc.gatemate.all;
@@ -65,6 +66,16 @@ architecture rtl of usb3_test is
 
   signal lfps_bit : std_logic;
 
+  signal poll_burst : std_logic;
+  signal poll_burst_next : std_logic;
+  signal clk_cnt : std_logic_vector(17 downto 0);
+  signal clk_cnt_init : std_logic_vector(17 downto 0);
+  signal clk_cnt_load : std_logic;
+  signal clk_cnt_ovfl : std_logic;
+
+  signal rx_en_ei_detect : std_logic;
+  signal rx_ei_detect    : std_logic;
+
   -- SerDes regisger bus
   signal regfile_clk : std_logic;
   signal regfile_en  : std_logic;
@@ -76,7 +87,6 @@ architecture rtl of usb3_test is
   signal regfile_rdy : std_logic;
 
   -- Debugging
-  signal clk_half : std_logic;
 
 begin
 
@@ -188,14 +198,16 @@ begin
       rx_prbs_cnt_reset_i => '0',
       rx_8b10b_en_i       => '0',
       rx_8b10b_bypass_i   => (others => '0'),
-      rx_en_ei_detector_i => '0',
+      rx_en_ei_detector_i => rx_en_ei_detect,
       rx_comma_detect_en_i=> '0',
       rx_slide_i          => '0',
       rx_mcomma_align_i   => '0',
       rx_pcomma_align_i   => '0',
 
+      rx_ei_en_o          => rx_ei_detect,
+
       pll_reset_i         => pll_reset,
-      loopback_i          => (others =>'0'),
+      loopback_i          => "010", -- (others =>'0'),
 
       regfile_clk_i  => regfile_clk,
       regfile_en_i   => regfile_en,
@@ -210,15 +222,64 @@ begin
   tx_reset_done_o <= tx_reset_done;
   rx_reset_done_o <= rx_reset_done;
 
-  tx_elec_idle <= '0';
+  -- tx_elec_idle <= '0';
   tx_8b10b_en  <= '1';
   tx_8b10b_bypass <= (others => '1');
   tx_char_is_k <= (others => '0');
 
-  p_lfps_bit: process(pll_clk) is
+  p_cnt_down: process(pll_clk) is
+  begin
+    if rising_edge(pll_clk) then
+      if clk_cnt_load = '1' then
+        clk_cnt <= clk_cnt_init;
+      elsif clk_cnt_ovfl = '0' then
+        clk_cnt <= std_logic_vector(unsigned(clk_cnt) - 1);
+      end if;
+    end if;
+  end process;
+
+  clk_cnt_ovfl <= clk_cnt(clk_cnt'left);
+
+  p_poll_burst: process(pll_clk) is
   begin
     if rising_edge(pll_clk) then
       if tx_reset_done = '0' then
+        poll_burst <= '0';
+      else
+        poll_burst <= poll_burst_next;
+      end if;
+    end if;
+  end process;
+
+  p_poll_burst_fsm: process(all) is
+  begin
+    clk_cnt_init <= (others => '1');
+    clk_cnt_load <= '0';
+    if poll_burst = '0' then
+      if clk_cnt_ovfl = '1' then
+        poll_burst_next <= '1';
+        clk_cnt_init <= std_logic_vector(to_unsigned(64-2, clk_cnt'length));
+        clk_cnt_load <= '1';
+      else
+        poll_burst_next <= '0';
+      end if;
+    else
+      if clk_cnt_ovfl = '1' then
+        poll_burst_next <= '0';
+        clk_cnt_init <= std_logic_vector(to_unsigned(64*9 - 2, clk_cnt'length));
+        clk_cnt_load <= '1';
+      else
+        poll_burst_next <= '1';
+      end if;
+    end if;
+  end process;
+
+  tx_elec_idle <= not poll_burst;
+
+  p_lfps_bit: process(pll_clk) is
+  begin
+    if rising_edge(pll_clk) then
+      if tx_elec_idle = '1' then
         lfps_bit <= '0';
       else
         lfps_bit <= not lfps_bit;
@@ -230,18 +291,25 @@ begin
   tx_char_dispval  <= (others => lfps_bit);
   tx_data          <= (others => lfps_bit);
 
+  p_rx_ei: process(pll_clk) is
+  begin
+    if rising_edge(pll_clk) then
+      if rx_reset_done = '0' then
+        rx_en_ei_detect <= '0';
+      else
+        rx_en_ei_detect <= '1';
+      end if;
+    end if;
+  end process;
+
   tx_detect_rx <= '0';
   -- tx_detect_rx_present
   -- tx_detect_rx_done
 
-  process(pll_clk) is
-  begin
-    if rising_edge(pll_clk) then
-      clk_half <= not clk_half;
-    end if;
-  end process;
-
   dbg_o <= (4 => pll_clk,
-            others => '0');
+            3 => rx_ei_detect,
+            2 => rx_en_ei_detect,
+            1 => tx_elec_idle,
+            0 => lfps_bit);
 
 end architecture rtl;
