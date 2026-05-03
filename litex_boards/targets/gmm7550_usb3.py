@@ -248,17 +248,13 @@ class USB(LiteXModule):
             dbg = Signal(5)
             testpoints = platform.request("p2_spiflash4x")
 
-            rst_done = Signal()
-            tx_rst_done = Signal()
-            rx_rst_done = Signal()
-
             wb_clk = ClockSignal()
             wb_rst = ResetSignal()
 
-            self.comb += [dbg_leds[0].eq(rst_done),
-                          dbg_leds[1].eq(tx_rst_done),
-                          dbg_leds[2].eq(rx_rst_done),
-                          dbg_leds[3].eq(wb_rst)]
+            self.comb += [dbg_leds[0].eq(dbg[0]),
+                          dbg_leds[1].eq(dbg[1]),
+                          dbg_leds[2].eq(dbg[2]),
+                          dbg_leds[3].eq(dbg[3])]
 
             name = "serdes_regs"
             reg_bus = wishbone.Interface(data_width=soc.bus.data_width)
@@ -280,10 +276,7 @@ class USB(LiteXModule):
                                       i_wb_we_i  = reg_bus.we,
                                       o_wb_ack_o = reg_bus.ack,
 
-                                      o_dbg_o = dbg,
-                                      o_tx_reset_done_o  = tx_rst_done,
-                                      o_rx_reset_done_o  = rx_rst_done,
-                                      o_serdes_reset_done_o = rst_done,
+                                      o_dbg_o = dbg
                                       );
 
             self.comb += [testpoints.cs_n.eq(1),

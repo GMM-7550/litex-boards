@@ -7,15 +7,7 @@ use cc.gatemate.all;
 
 entity usb3_test is
   port (
-    -- ser_tx_p : out std_logic;
-    -- ser_tx_n : out std_logic;
-    -- ser_rx_p : in  std_logic;
-    -- ser_rx_n : in  std_logic;
-
     dbg_o               : out std_logic_vector(4 downto 0);
-    serdes_reset_done_o : out std_logic;
-    tx_reset_done_o     : out std_logic;
-    rx_reset_done_o     : out std_logic;
 
     wb_clk_i : in std_logic;
     wb_rst_i : in std_logic;
@@ -135,12 +127,15 @@ begin
       rx_pcs_reset_o => rx_pcs_reset,
       rx_buf_reset_o => rx_buf_reset,
 
-      done_o => serdes_reset_done_o
+      done_o => open
       );
 
   i_serdes: component cc_serdes
     generic map (
       serdes_enable => 1,
+      serdes_auto_init => 0,
+      serdes_testmode  => 1,
+
       pll_en_adpll_ctrl => 1,
       pll_ref_sel => 1, -- LVDS (0 -- single ended)
 
@@ -219,9 +214,6 @@ begin
       regfile_rdy_o  => regfile_rdy
       );
 
-  tx_reset_done_o <= tx_reset_done;
-  rx_reset_done_o <= rx_reset_done;
-
   -- tx_elec_idle <= '0';
   tx_8b10b_en  <= '1';
   tx_8b10b_bypass <= (others => '1');
@@ -240,76 +232,77 @@ begin
 
   clk_cnt_ovfl <= clk_cnt(clk_cnt'left);
 
-  p_poll_burst: process(pll_clk) is
-  begin
-    if rising_edge(pll_clk) then
-      if tx_reset_done = '0' then
-        poll_burst <= '0';
-      else
-        poll_burst <= poll_burst_next;
-      end if;
-    end if;
-  end process;
+  -- p_poll_burst: process(pll_clk) is
+  -- begin
+  --   if rising_edge(pll_clk) then
+  --     if tx_reset_done = '0' then
+  --       poll_burst <= '0';
+  --     else
+  --       poll_burst <= poll_burst_next;
+  --     end if;
+  --   end if;
+  -- end process;
 
-  p_poll_burst_fsm: process(all) is
-  begin
-    clk_cnt_init <= (others => '1');
-    clk_cnt_load <= '0';
-    if poll_burst = '0' then
-      if clk_cnt_ovfl = '1' then
-        poll_burst_next <= '1';
-        clk_cnt_init <= std_logic_vector(to_unsigned(64-2, clk_cnt'length));
-        clk_cnt_load <= '1';
-      else
-        poll_burst_next <= '0';
-      end if;
-    else
-      if clk_cnt_ovfl = '1' then
-        poll_burst_next <= '0';
-        clk_cnt_init <= std_logic_vector(to_unsigned(64*9 - 2, clk_cnt'length));
-        clk_cnt_load <= '1';
-      else
-        poll_burst_next <= '1';
-      end if;
-    end if;
-  end process;
+  -- p_poll_burst_fsm: process(all) is
+  -- begin
+  --   clk_cnt_init <= (others => '1');
+  --   clk_cnt_load <= '0';
+  --   if poll_burst = '0' then
+  --     if clk_cnt_ovfl = '1' then
+  --       poll_burst_next <= '1';
+  --       clk_cnt_init <= std_logic_vector(to_unsigned(64-2, clk_cnt'length));
+  --       clk_cnt_load <= '1';
+  --     else
+  --       poll_burst_next <= '0';
+  --     end if;
+  --   else
+  --     if clk_cnt_ovfl = '1' then
+  --       poll_burst_next <= '0';
+  --       clk_cnt_init <= std_logic_vector(to_unsigned(64*9 - 2, clk_cnt'length));
+  --       clk_cnt_load <= '1';
+  --     else
+  --       poll_burst_next <= '1';
+  --     end if;
+  --   end if;
+  -- end process;
 
-  tx_elec_idle <= not poll_burst;
+  -- tx_elec_idle <= not poll_burst;
 
-  p_lfps_bit: process(pll_clk) is
-  begin
-    if rising_edge(pll_clk) then
-      if tx_elec_idle = '1' then
-        lfps_bit <= '0';
-      else
-        lfps_bit <= not lfps_bit;
-      end if;
-    end if;
-  end process;
+  -- p_lfps_bit: process(pll_clk) is
+  -- begin
+  --   if rising_edge(pll_clk) then
+  --     if tx_elec_idle = '1' then
+  --       lfps_bit <= '0';
+  --     else
+  --       lfps_bit <= not lfps_bit;
+  --     end if;
+  --   end if;
+  -- end process;
+
+  lfps_bit <= '0';
 
   tx_char_dispmode <= (others => lfps_bit);
   tx_char_dispval  <= (others => lfps_bit);
   tx_data          <= (others => lfps_bit);
 
-  p_rx_ei: process(pll_clk) is
-  begin
-    if rising_edge(pll_clk) then
-      if rx_reset_done = '0' then
-        rx_en_ei_detect <= '0';
-      else
-        rx_en_ei_detect <= '1';
-      end if;
-    end if;
-  end process;
+  -- p_rx_ei: process(pll_clk) is
+  -- begin
+  --   if rising_edge(pll_clk) then
+  --     if rx_reset_done = '0' then
+  --       rx_en_ei_detect <= '0';
+  --     else
+  --       rx_en_ei_detect <= '1';
+  --     end if;
+  --   end if;
+  -- end process;
 
+  rx_en_ei_detect <= '0';
   tx_detect_rx <= '0';
-  -- tx_detect_rx_present
-  -- tx_detect_rx_done
 
   dbg_o <= (4 => pll_clk,
-            3 => rx_ei_detect,
-            2 => rx_en_ei_detect,
-            1 => tx_elec_idle,
-            0 => lfps_bit);
+            3 => '0',
+            2 => rx_ei_detect,
+            1 => '0',
+            0 => rx_en_ei_detect);
 
 end architecture rtl;
