@@ -2,3 +2,4 @@
 *.o
 usb3_test.v
 cy7c1049.v
+ulpi_init_seq.v
