@@ -27,7 +27,7 @@ from litex.soc.integration.soc_core import *
 from litex.soc.integration.builder import *
 from litex.soc.integration.soc import SoCRegion
 
-from litex.build.generic_platform import Pins, Subsignal
+from litex.build.generic_platform import Pins, Subsignal, Misc
 
 from litex.soc.cores.led import LedChaser
 from litex.soc.cores.gpio import GPIOOut
@@ -100,8 +100,8 @@ p2 = [
     ),
     ("p2_spiflash4x", 0,
         Subsignal("cs_n", Pins("P2:3")),
-        Subsignal("clk",  Pins("P2:6")),
-        Subsignal("dq",   Pins("P2:11 P2:5 P2:9 P2:4")),
+        Subsignal("clk",  Pins("P2:6"), Misc("slew=fast")),
+        Subsignal("dq",   Pins("P2:11 P2:5 P2:9 P2:4"), Misc("slew=fast")),
     ),
 
     ("async_sram", 0,
@@ -231,11 +231,50 @@ class USB(LiteXModule):
 
         # ULPI (USB 2.0 PHY) -----------------------------------------------------------------------
         self.ulpi = ulpi = platform.request("ulpi")
+        ULPI_CLK_FREQ = 60e6
+
         if '2' in usb_options:
             pass # Not implemented yet
-        else:
-            self.comb += [ulpi.rst_n.eq(0)] # keep PHY in reset
-                                            # D+/D- signals are connected to USB 1.1 transceiver
+        else: # Switch PHY to Audio mode -- D+/D- signals are connected to USB 1.1 transceiver
+            sys_rst = ResetSignal("sys")
+            self.comb += ulpi.rst_n.eq(~sys_rst)
+
+            self.cd_usb = cd_usb = ClockDomain()
+            self.pll  = pll = GateMatePLL(perf_mode="speed")
+            self.comb += pll.reset.eq(sys_rst)
+            pll.register_clkin(ulpi.clk, ULPI_CLK_FREQ)
+            pll.create_clkout(cd_usb, ULPI_CLK_FREQ)
+            platform.add_period_constraint(cd_usb.clk, 1e9/ULPI_CLK_FREQ)
+
+            ulpi_dat_o = Signal(8);
+            ulpi_dat_i = Signal(8);
+            ulpi_dat_oe = Signal()
+
+            ulpi_stp = Signal()
+            self.comb += ulpi.stp.eq(ulpi_stp)
+
+            self.specials += Instance("ulpi_init_seq",
+                                      i_clk_i  = cd_usb.clk,
+                                      i_rst_i  = ~pll.locked,
+                                      i_dir    = ulpi.dir,
+                                      i_nxt    = ulpi.nxt,
+                                      o_stp    = ulpi_stp,
+                                      o_dat_o  = ulpi_dat_o,
+                                      o_dat_oe = ulpi_dat_oe,
+                                      i_dat_i  = ulpi_dat_i)
+            self.specials += Tristate(ulpi.data, ulpi_dat_o, ulpi_dat_oe, ulpi_dat_i)
+            hdl_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
+                                   "gmm7550")
+            platform.add_source(os.path.join(hdl_dir, "ulpi_init_seq.v"))
+
+            testpoints = platform.request("p2_spiflash4x")
+
+            self.comb += [testpoints.cs_n.eq(1),
+                          testpoints.clk.eq(ulpi.clk),
+                          testpoints.dq[0].eq(pll.locked),
+                          testpoints.dq[1].eq(0),
+                          testpoints.dq[2].eq(cd_usb.clk),
+                          testpoints.dq[3].eq(ulpi_stp)]
 
         # USB 3 (SuperSpeed with SerDes) -----------------------------------------------------------
         if '3' in usb_options:
@@ -245,8 +284,8 @@ class USB(LiteXModule):
 
             dbg_leds = platform.request_all("leds")
 
-            dbg = Signal(5)
-            testpoints = platform.request("p2_spiflash4x")
+            # dbg = Signal(5)
+            # testpoints = platform.request("p2_spiflash4x")
 
             wb_clk = ClockSignal()
             wb_rst = ResetSignal()
@@ -279,12 +318,12 @@ class USB(LiteXModule):
                                       o_dbg_o = dbg
                                       );
 
-            self.comb += [testpoints.cs_n.eq(1),
-                          testpoints.clk.eq(dbg[4]),
-                          testpoints.dq[0].eq(dbg[0]),
-                          testpoints.dq[1].eq(dbg[1]),
-                          testpoints.dq[2].eq(dbg[2]),
-                          testpoints.dq[3].eq(dbg[3])]
+            # self.comb += [testpoints.cs_n.eq(1),
+            #               testpoints.clk.eq(dbg[4]),
+            #               testpoints.dq[0].eq(dbg[0]),
+            #               testpoints.dq[1].eq(dbg[1]),
+            #               testpoints.dq[2].eq(dbg[2]),
+            #               testpoints.dq[3].eq(dbg[3])]
 
 # BaseSoC ------------------------------------------------------------------------------------------
 
