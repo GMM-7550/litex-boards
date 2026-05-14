@@ -11,6 +11,7 @@
 
 from migen import *
 from migen.fhdl.specials import Tristate
+from migen.genlib.cdc import MultiReg
 
 from litex.gen import *
 
@@ -31,6 +32,7 @@ from litex.build.generic_platform import Pins, Subsignal, Misc
 
 from litex.soc.cores.led import LedChaser
 from litex.soc.cores.gpio import GPIOOut
+
 
 # USB 3 Adapter board IOs -------------------------------------------------------
 
@@ -188,6 +190,54 @@ def add_async_ram(soc, platform, name, origin, size):
     setattr(soc.submodules, name, ram)
 
 # USB ----------------------------------------------------------------------------------------------
+class IoBuf(Module):
+    def __init__(self, usb_pins):
+        self.usb_tx_en = Signal()
+        self.usb_p_tx = Signal()
+        self.usb_n_tx = Signal()
+        self.usb_p_rx = Signal()
+        self.usb_n_rx = Signal()
+        self.usb_ls_rx = Signal()
+
+        self.usb_p_rx_io = Signal()
+        self.usb_n_rx_io = Signal()
+
+        usb_p_t = TSTriple()
+        usb_n_t = TSTriple()
+
+        self.specials += usb_p_t.get_tristate(usb_pins.vp)
+        self.specials += usb_n_t.get_tristate(usb_pins.vm)
+
+        self.usb_pullup = Signal()
+        self.comb += usb_pins.con.eq(self.usb_pullup),
+        self.comb += usb_pins.sus.eq(0)
+
+        usb_p_t_i = Signal()
+        usb_n_t_i = Signal()
+
+        self.specials += [
+            MultiReg(usb_p_t.i, usb_p_t_i),
+            MultiReg(usb_n_t.i, usb_n_t_i)
+        ]
+
+        self.comb += [
+            usb_pins.oe_n.eq(~self.usb_tx_en),
+
+            If(self.usb_tx_en,
+                self.usb_p_rx.eq(0b1),
+                self.usb_n_rx.eq(0b0),
+            ).Elif(self.usb_ls_rx,
+                self.usb_p_rx.eq(usb_n_t_i),
+                self.usb_n_rx.eq(usb_p_t_i),
+            ).Else(
+                self.usb_p_rx.eq(usb_p_t_i),
+                self.usb_n_rx.eq(usb_n_t_i),
+            ),
+            usb_p_t.oe.eq(self.usb_tx_en),
+            usb_n_t.oe.eq(self.usb_tx_en),
+            usb_p_t.o.eq(self.usb_p_tx),
+            usb_n_t.o.eq(self.usb_n_tx),
+        ]
 
 class USB(LiteXModule):
 
@@ -206,45 +256,22 @@ class USB(LiteXModule):
         if ('1' in usb_options) and ('2' in usb_options):
             raise ValueError("USB options 1 and 2 are mutually exclusive.")
 
+        if ('1' in usb_options) or ('2' in usb_options): # ULPI PHY access is required in both cases
+            ULPI_CLK_FREQ = 60e6
+            self.ulpi = ulpi = platform.request("ulpi")
+
         # USB 1.1 transceiver ----------------------------------------------------------------------
         if '1' in usb_options:
             self.usb1 = usb1 = platform.request("usb1")
-            self.ctrl = ctrl = CSRStorage(5, description="USB 1.1 outputs: SUS_N, CON, OE, VM, VP")
-            self.stat = stat = CSRStatus(4, description="USB 1.1 inputs: VBUS, RCV, VM, VP")
-
-            self.comb += usb1.sus.eq(~ctrl.storage[4])
-            self.comb += usb1.con.eq(ctrl.storage[3])
-            self.comb += usb1.oe_n.eq(~ctrl.storage[2])
-
-            vp_i = Signal(); vm_i = Signal()
-            self.specials += Tristate(usb1.vm,
-                                      o = ctrl.storage[1], oe = ctrl.storage[2],
-                                      i = vm_i)
-            self.specials += Tristate(usb1.vp,
-                                      o = ctrl.storage[0], oe = ctrl.storage[2],
-                                      i = vp_i)
-
-            self.comb += stat.status[3].eq(usb1.busdet)
-            self.comb += stat.status[2].eq(usb1.rcv)
-            self.comb += stat.status[1].eq(vm_i)
-            self.comb += stat.status[0].eq(vp_i)
-
-        # ULPI (USB 2.0 PHY) -----------------------------------------------------------------------
-        self.ulpi = ulpi = platform.request("ulpi")
-        ULPI_CLK_FREQ = 60e6
-
-        if '2' in usb_options:
-            pass # Not implemented yet
-        else: # Switch PHY to Audio mode -- D+/D- signals are connected to USB 1.1 transceiver
             sys_rst = ResetSignal("sys")
             self.comb += ulpi.rst_n.eq(~sys_rst)
 
-            self.cd_usb = cd_usb = ClockDomain()
-            self.pll  = pll = GateMatePLL(perf_mode="speed")
-            self.comb += pll.reset.eq(sys_rst)
-            pll.register_clkin(ulpi.clk, ULPI_CLK_FREQ)
-            pll.create_clkout(cd_usb, ULPI_CLK_FREQ)
-            platform.add_period_constraint(cd_usb.clk, 1e9/ULPI_CLK_FREQ)
+            self.cd_ulpi = cd_ulpi = ClockDomain("ulpi")
+            self.pll60 = pll60 = GateMatePLL(perf_mode="speed")
+            self.comb += pll60.reset.eq(sys_rst)
+            pll60.register_clkin(ulpi.clk, ULPI_CLK_FREQ)
+            pll60.create_clkout(cd_ulpi, ULPI_CLK_FREQ)
+            platform.add_period_constraint(cd_ulpi.clk, 1e9/ULPI_CLK_FREQ)
 
             ulpi_dat_o = Signal(8);
             ulpi_dat_i = Signal(8);
@@ -252,10 +279,10 @@ class USB(LiteXModule):
 
             ulpi_stp = Signal()
             self.comb += ulpi.stp.eq(ulpi_stp)
-
+            # Switch PHY to Audio mode -- D+/D- signals are connected to USB 1.1 transceiver
             self.specials += Instance("ulpi_init_seq",
-                                      i_clk_i  = cd_usb.clk,
-                                      i_rst_i  = ~pll.locked,
+                                      i_clk_i  = cd_ulpi.clk,
+                                      i_rst_i  = ~pll60.locked,
                                       i_dir    = ulpi.dir,
                                       i_nxt    = ulpi.nxt,
                                       o_stp    = ulpi_stp,
@@ -267,14 +294,33 @@ class USB(LiteXModule):
                                    "gmm7550")
             platform.add_source(os.path.join(hdl_dir, "ulpi_init_seq.v"))
 
-            testpoints = platform.request("p2_spiflash4x")
+            self.cd_usb_48 = cd_usb_48 = ClockDomain("usb_48")
+            self.pll48  = pll48  = GateMatePLL(perf_mode="speed")
+            self.comb += pll48.reset.eq(sys_rst)
+            pll48.register_clkin(ulpi.clk, ULPI_CLK_FREQ)
+            pll48.create_clkout(cd_usb_48, 48e6)
+            platform.add_period_constraint(cd_usb_48.clk, 1e9/48e6)
 
+            self.cd_usb_12 = cd_usb_12 = ClockDomain("usb_12")
+            self.specials += Instance("div4", i_clk_in = cd_usb_48.clk, o_clk_out = cd_usb_12.clk)
+            platform.add_source(os.path.join(hdl_dir, "div4.v"))
+            platform.add_period_constraint(cd_usb_12.clk, 1e9/12e6)
+
+            testpoints = platform.request("p2_spiflash4x")
             self.comb += [testpoints.cs_n.eq(1),
                           testpoints.clk.eq(ulpi.clk),
-                          testpoints.dq[0].eq(pll.locked),
+                          testpoints.dq[0].eq(pll60.locked),
                           testpoints.dq[1].eq(0),
-                          testpoints.dq[2].eq(cd_usb.clk),
-                          testpoints.dq[3].eq(ulpi_stp)]
+                          testpoints.dq[2].eq(ClockSignal("usb_48")),
+                          testpoints.dq[3].eq(ClockSignal("usb_12"))]
+
+            from valentyusb.usbcore.cpu import epfifo, dummyusb
+            self.submodules.usb = dummyusb.DummyUsb(IoBuf(usb1), cdc=True)
+            # self.submodules.usb = epfifo.PerEndpointFifoInterface(usb_iobuf)
+
+        # ULPI (USB 2.0 PHY) -----------------------------------------------------------------------
+        if '2' in usb_options:
+            pass # Not implemented yet
 
         # USB 3 (SuperSpeed with SerDes) -----------------------------------------------------------
         if '3' in usb_options:
