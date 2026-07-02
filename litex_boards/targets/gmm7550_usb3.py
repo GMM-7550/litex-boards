@@ -9,6 +9,8 @@
 # Copyright (c) 2023 Gwenhael Goavec-merou<gwenhael.goavec-merou@trabucayre.com>
 # SPDX-License-Identifier: BSD-2-Clause
 
+from math import log2, ceil
+
 from migen import *
 from migen.fhdl.specials import Tristate
 from migen.genlib.cdc import MultiReg
@@ -242,6 +244,8 @@ class IoBuf(Module):
 class USB(LiteXModule):
 
     def __init__(self, soc, platform, usb_options):
+        hdl_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
+                               "gmm7550")
         # Power Delivery Control -------------------------------------------------------------------
         if 'pd' in usb_options:
             self.pd = pd = platform.request("pd")
@@ -256,33 +260,52 @@ class USB(LiteXModule):
         if ('1' in usb_options) and ('2' in usb_options):
             raise ValueError("USB options 1 and 2 are mutually exclusive.")
 
-        if ('1' in usb_options) or ('2' in usb_options): # ULPI PHY access is required in both cases
+        # Vbus detection, PLL, reset, and ULPI PHY access are shared by USB FS and HS implementations
+        if ('1' in usb_options) or ('2' in usb_options):
             ULPI_CLK_FREQ = 60e6
             self.ulpi = ulpi = platform.request("ulpi")
-
-        # USB 1.1 transceiver ----------------------------------------------------------------------
-        if '1' in usb_options:
             self.usb1 = usb1 = platform.request("usb1")
-            sys_rst = ResetSignal("sys")
-            self.comb += ulpi.rst_n.eq(~sys_rst)
+
+            ulpi_phy_rst = Signal()
+            usb_pll_rst = Signal()
+            usb_rst = Signal()
+
+            self.comb += ulpi.rst_n.eq(~ulpi_phy_rst)
 
             self.cd_ulpi = cd_ulpi = ClockDomain("ulpi")
             self.pll60 = pll60 = GateMatePLL(perf_mode="speed")
-            self.comb += pll60.reset.eq(sys_rst)
+            self.comb += pll60.reset.eq(usb_pll_rst)
             pll60.register_clkin(ulpi.clk, ULPI_CLK_FREQ)
             pll60.create_clkout(cd_ulpi, ULPI_CLK_FREQ)
             platform.add_period_constraint(cd_ulpi.clk, 1e9/ULPI_CLK_FREQ)
 
+            platform.add_source(os.path.join(hdl_dir, "rst_delay.v"))
+
+            self.specials += Instance("rst_delay",
+                                      i_delay = 200, # int(5e6), # 200ms @ 25 MHz
+                                      i_clk_i = ClockSignal("sys"),
+                                      i_rst_i = ResetSignal("sys") | ~usb1.busdet,
+                                      o_rst_o = ulpi_phy_rst)
+
+            self.comb += [
+                # ulpi_phy_rst.eq(ResetSignal("sys")),
+                usb_pll_rst.eq(ulpi_phy_rst),
+                usb_rst.eq(~pll60.locked),
+            ]
+            # pll60.locked
+            # pll48.locked
+
+        # USB 1.1 transceiver ----------------------------------------------------------------------
+        if '1' in usb_options:
+            # Switch PHY to Audio mode -- D+/D- signals are connected to USB 1.1 transceiver
             ulpi_dat_o = Signal(8);
             ulpi_dat_i = Signal(8);
             ulpi_dat_oe = Signal()
-
             ulpi_stp = Signal()
             self.comb += ulpi.stp.eq(ulpi_stp)
-            # Switch PHY to Audio mode -- D+/D- signals are connected to USB 1.1 transceiver
             self.specials += Instance("ulpi_init_seq",
                                       i_clk_i  = cd_ulpi.clk,
-                                      i_rst_i  = ~pll60.locked,
+                                      i_rst_i  = usb_rst,
                                       i_dir    = ulpi.dir,
                                       i_nxt    = ulpi.nxt,
                                       o_stp    = ulpi_stp,
@@ -290,13 +313,11 @@ class USB(LiteXModule):
                                       o_dat_oe = ulpi_dat_oe,
                                       i_dat_i  = ulpi_dat_i)
             self.specials += Tristate(ulpi.data, ulpi_dat_o, ulpi_dat_oe, ulpi_dat_i)
-            hdl_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
-                                   "gmm7550")
             platform.add_source(os.path.join(hdl_dir, "ulpi_init_seq.v"))
 
             self.cd_usb_48 = cd_usb_48 = ClockDomain("usb_48")
             self.pll48  = pll48  = GateMatePLL(perf_mode="speed")
-            self.comb += pll48.reset.eq(sys_rst)
+            self.comb += pll48.reset.eq(usb_pll_rst)
             pll48.register_clkin(ulpi.clk, ULPI_CLK_FREQ)
             pll48.create_clkout(cd_usb_48, 48e6)
             platform.add_period_constraint(cd_usb_48.clk, 1e9/48e6)
@@ -308,15 +329,15 @@ class USB(LiteXModule):
 
             testpoints = platform.request("p2_spiflash4x")
             self.comb += [testpoints.cs_n.eq(1),
-                          testpoints.clk.eq(ulpi.clk),
-                          testpoints.dq[0].eq(pll60.locked),
-                          testpoints.dq[1].eq(0),
-                          testpoints.dq[2].eq(ClockSignal("usb_48")),
-                          testpoints.dq[3].eq(ClockSignal("usb_12"))]
+                          testpoints.clk.eq(ClockSignal("sys")),
+                          testpoints.dq[0].eq(ResetSignal("sys")),
+                          testpoints.dq[1].eq(usb1.busdet),
+                          testpoints.dq[2].eq(ulpi_phy_rst),
+                          testpoints.dq[3].eq(usb_pll_rst)]
 
             from valentyusb.usbcore.cpu import epfifo, dummyusb
             self.submodules.usb = dummyusb.DummyUsb(IoBuf(usb1), cdc=True)
-            # self.submodules.usb = epfifo.PerEndpointFifoInterface(usb_iobuf)
+            # self.submodules.usb = epfifo.PerEndpointFifoInterface(IoBuf(usb1), cdc=True)
 
         # ULPI (USB 2.0 PHY) -----------------------------------------------------------------------
         if '2' in usb_options:
@@ -324,8 +345,6 @@ class USB(LiteXModule):
 
         # USB 3 (SuperSpeed with SerDes) -----------------------------------------------------------
         if '3' in usb_options:
-            hdl_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
-                                   "gmm7550")
             platform.add_source(os.path.join(hdl_dir, "usb3_test.v"))
 
             dbg_leds = platform.request_all("leds")

@@ -1,4 +1,4 @@
-TARGETS := usb3_test cy7c1049 ulpi_init_seq div4
+TARGETS := usb3_test cy7c1049 ulpi_init_seq div4 rst_delay
 
 GHDL          := ghdl
 RM            := rm -f
