@@ -104,8 +104,9 @@ p2 = [
     ),
     ("p2_spiflash4x", 0,
         Subsignal("cs_n", Pins("P2:3")),
-        Subsignal("clk",  Pins("P2:6"), Misc("slew=fast")),
-        Subsignal("dq",   Pins("P2:11 P2:5 P2:9 P2:4"), Misc("slew=fast")),
+        # Subsignal("clk",  Pins("P2:6"), Misc("slew=fast")),
+        Subsignal("clk",  Pins("P2:6"), Misc("drive=9"), Misc("slew=slow")),
+        Subsignal("dq",   Pins("P2:11 P2:5 P2:9 P2:4"), Misc("drive=9"), Misc("slew=slow")),
     ),
 
     ("async_sram", 0,
@@ -192,54 +193,6 @@ def add_async_ram(soc, platform, name, origin, size):
     setattr(soc.submodules, name, ram)
 
 # USB ----------------------------------------------------------------------------------------------
-class IoBuf(Module):
-    def __init__(self, usb_pins):
-        self.usb_tx_en = Signal()
-        self.usb_p_tx = Signal()
-        self.usb_n_tx = Signal()
-        self.usb_p_rx = Signal()
-        self.usb_n_rx = Signal()
-        self.usb_ls_rx = Signal()
-
-        self.usb_p_rx_io = Signal()
-        self.usb_n_rx_io = Signal()
-
-        usb_p_t = TSTriple()
-        usb_n_t = TSTriple()
-
-        self.specials += usb_p_t.get_tristate(usb_pins.vp)
-        self.specials += usb_n_t.get_tristate(usb_pins.vm)
-
-        self.usb_pullup = Signal()
-        self.comb += usb_pins.con.eq(self.usb_pullup),
-        self.comb += usb_pins.sus.eq(0)
-
-        usb_p_t_i = Signal()
-        usb_n_t_i = Signal()
-
-        self.specials += [
-            MultiReg(usb_p_t.i, usb_p_t_i),
-            MultiReg(usb_n_t.i, usb_n_t_i)
-        ]
-
-        self.comb += [
-            usb_pins.oe_n.eq(~self.usb_tx_en),
-
-            If(self.usb_tx_en,
-                self.usb_p_rx.eq(0b1),
-                self.usb_n_rx.eq(0b0),
-            ).Elif(self.usb_ls_rx,
-                self.usb_p_rx.eq(usb_n_t_i),
-                self.usb_n_rx.eq(usb_p_t_i),
-            ).Else(
-                self.usb_p_rx.eq(usb_p_t_i),
-                self.usb_n_rx.eq(usb_n_t_i),
-            ),
-            usb_p_t.oe.eq(self.usb_tx_en),
-            usb_n_t.oe.eq(self.usb_tx_en),
-            usb_p_t.o.eq(self.usb_p_tx),
-            usb_n_t.o.eq(self.usb_n_tx),
-        ]
 
 class USB(LiteXModule):
 
@@ -322,11 +275,6 @@ class USB(LiteXModule):
             pll48.create_clkout(cd_usb_48, 48e6)
             platform.add_period_constraint(cd_usb_48.clk, 1e9/48e6)
 
-            self.cd_usb_12 = cd_usb_12 = ClockDomain("usb_12")
-            self.specials += Instance("div4", i_clk_in = cd_usb_48.clk, o_clk_out = cd_usb_12.clk)
-            platform.add_source(os.path.join(hdl_dir, "div4.v"))
-            platform.add_period_constraint(cd_usb_12.clk, 1e9/12e6)
-
             testpoints = platform.request("p2_spiflash4x")
             self.comb += [testpoints.cs_n.eq(1),
                           testpoints.clk.eq(ClockSignal("sys")),
@@ -334,10 +282,6 @@ class USB(LiteXModule):
                           testpoints.dq[1].eq(usb1.busdet),
                           testpoints.dq[2].eq(ulpi_phy_rst),
                           testpoints.dq[3].eq(usb_pll_rst)]
-
-            from valentyusb.usbcore.cpu import epfifo, dummyusb
-            self.submodules.usb = dummyusb.DummyUsb(IoBuf(usb1), cdc=True)
-            # self.submodules.usb = epfifo.PerEndpointFifoInterface(IoBuf(usb1), cdc=True)
 
         # ULPI (USB 2.0 PHY) -----------------------------------------------------------------------
         if '2' in usb_options:
