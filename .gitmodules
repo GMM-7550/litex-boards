@@ -1,0 +1,3 @@
+[submodule "litex_boards/targets/gmm7550/gmm7550-usb"]
+	path = litex_boards/targets/gmm7550/gmm7550-usb
+	url = ssh://gh-gmm7550/gmm-7550/gmm7550-usb.git
