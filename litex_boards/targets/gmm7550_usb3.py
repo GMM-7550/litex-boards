@@ -74,7 +74,7 @@ p4 = [
 
     # USB 2.0 (ULPI, Microchip USB3340 PHY)
     ("ulpi", 0,
-     Subsignal("clk",   Pins("P4:23")), # CLK 1, 60 MHz
+     Subsignal("clk",   Pins("P4:23"), Misc("pulldown=1")), # CLK 1, 60 MHz
      Subsignal("stp",   Pins("P4:28")),
      Subsignal("dir",   Pins("P4:30")),
      Subsignal("nxt",   Pins("P4:37")),
@@ -235,7 +235,7 @@ class USB(LiteXModule):
             platform.add_source(os.path.join(hdl_dir, "rst_delay.v"))
 
             self.specials += Instance("rst_delay",
-                                      i_delay = 200, # int(5e6), # 200ms @ 25 MHz
+                                      i_delay = int(1e6),
                                       i_clk_i = ClockSignal("sys"),
                                       i_rst_i = ResetSignal("sys") | ~usb1.busdet,
                                       o_rst_o = ulpi_phy_rst)
@@ -279,7 +279,7 @@ class USB(LiteXModule):
             self.comb += [testpoints.cs_n.eq(1),
                           testpoints.clk.eq(ClockSignal("sys")),
                           testpoints.dq[0].eq(ResetSignal("sys")),
-                          testpoints.dq[1].eq(usb1.busdet),
+                          testpoints.dq[1].eq(ulpi.dir),
                           testpoints.dq[2].eq(ulpi_phy_rst),
                           testpoints.dq[3].eq(usb_pll_rst)]
 
