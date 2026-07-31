@@ -197,8 +197,11 @@ def add_async_ram(soc, platform, name, origin, size):
 class USB(LiteXModule):
 
     def __init__(self, soc, platform, usb_options):
+        dbg_leds = platform.request_all("leds")
+        testpoints = platform.request("p2_spiflash4x")
         hdl_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                "gmm7550")
+
         # Power Delivery Control -------------------------------------------------------------------
         if 'pd' in usb_options:
             self.pd = pd = platform.request("pd")
@@ -275,13 +278,17 @@ class USB(LiteXModule):
             pll48.create_clkout(cd_usb_48, 48e6)
             platform.add_period_constraint(cd_usb_48.clk, 1e9/48e6)
 
-            testpoints = platform.request("p2_spiflash4x")
-            self.comb += [testpoints.cs_n.eq(1),
-                          testpoints.clk.eq(ClockSignal("sys")),
-                          testpoints.dq[0].eq(ResetSignal("sys")),
-                          testpoints.dq[1].eq(ulpi.dir),
-                          testpoints.dq[2].eq(ulpi_phy_rst),
-                          testpoints.dq[3].eq(usb_pll_rst)]
+            self.comb += [dbg_leds[0].eq(ResetSignal("sys")),
+                          dbg_leds[1].eq(ulpi_phy_rst),
+                          dbg_leds[2].eq(usb_pll_rst),
+                          dbg_leds[3].eq(usb_pll48_lock)]
+
+            # self.comb += [testpoints.cs_n.eq(1),
+            #               testpoints.clk.eq(ClockSignal("usb_48")),
+            #               testpoints.dq[0].eq(ResetSignal("sys")),
+            #               testpoints.dq[1].eq(ulpi_phy_rst),
+            #               testpoints.dq[2].eq(usb_pll_rst),
+            #               testpoints.dq[3].eq(usb_pll48_lock)]
 
         # ULPI (USB 2.0 PHY) -----------------------------------------------------------------------
         if '2' in usb_options:
@@ -291,18 +298,16 @@ class USB(LiteXModule):
         if '3' in usb_options:
             platform.add_source(os.path.join(hdl_dir, "usb3_test.v"))
 
-            dbg_leds = platform.request_all("leds")
-
             # dbg = Signal(5)
             # testpoints = platform.request("p2_spiflash4x")
 
             wb_clk = ClockSignal()
             wb_rst = ResetSignal()
 
-            self.comb += [dbg_leds[0].eq(dbg[0]),
-                          dbg_leds[1].eq(dbg[1]),
-                          dbg_leds[2].eq(dbg[2]),
-                          dbg_leds[3].eq(dbg[3])]
+            # self.comb += [dbg_leds[0].eq(dbg[0]),
+            #               dbg_leds[1].eq(dbg[1]),
+            #               dbg_leds[2].eq(dbg[2]),
+            #               dbg_leds[3].eq(dbg[3])]
 
             name = "serdes_regs"
             reg_bus = wishbone.Interface(data_width=soc.bus.data_width)
