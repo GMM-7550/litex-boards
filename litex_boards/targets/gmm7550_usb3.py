@@ -76,7 +76,7 @@ p4 = [
     ("ulpi", 0,
      Subsignal("clk",   Pins("P4:23"), Misc("pulldown=1")), # CLK 1, 60 MHz
      Subsignal("stp",   Pins("P4:28")),
-     Subsignal("dir",   Pins("P4:30")),
+     Subsignal("dir",   Pins("P4:30"), Misc("pullup=1")),
      Subsignal("nxt",   Pins("P4:37")),
      Subsignal("rst_n", Pins("P4:24")),
      Subsignal("data",  Pins("P4:39", # 0
@@ -219,6 +219,7 @@ class USB(LiteXModule):
         # Vbus detection, PLL, reset, and ULPI PHY access are shared by USB FS and HS implementations
         if ('1' in usb_options) or ('2' in usb_options):
             ULPI_CLK_FREQ = 60e6
+            USBFS_CLK_FREQ = 48e6
             self.ulpi = ulpi = platform.request("ulpi")
             self.usb1 = usb1 = platform.request("usb1")
 
@@ -243,11 +244,11 @@ class USB(LiteXModule):
                                       i_rst_i = ResetSignal("sys") | ~usb1.busdet,
                                       o_rst_o = ulpi_phy_rst)
 
-            self.comb += [
-                # ulpi_phy_rst.eq(ResetSignal("sys")),
-                usb_pll_rst.eq(ulpi_phy_rst),
-                usb_rst.eq(~pll60.locked),
-            ]
+            # self.comb += [
+            #     # ulpi_phy_rst.eq(ResetSignal("sys")),
+            #     usb_pll_rst.eq(ulpi_phy_rst),
+            #     usb_rst.eq(~pll60.locked),
+            # ]
             # pll60.locked
             # pll48.locked
 
@@ -271,12 +272,22 @@ class USB(LiteXModule):
             self.specials += Tristate(ulpi.data, ulpi_dat_o, ulpi_dat_oe, ulpi_dat_i)
             platform.add_source(os.path.join(hdl_dir, "ulpi_init_seq.v"))
 
+            platform.add_source(os.path.join(hdl_dir, "usb_fs.v"))
+            self.specials += Instance("usb_fs",
+                                      i_ulpi_dir = ulpi.dir,
+                                      i_phy_rst  = ulpi_phy_rst,
+                                      o_pll_rst  = usb_pll_rst)
+
             self.cd_usb_48 = cd_usb_48 = ClockDomain("usb_48")
             self.pll48  = pll48  = GateMatePLL(perf_mode="speed")
             self.comb += pll48.reset.eq(usb_pll_rst)
             pll48.register_clkin(ulpi.clk, ULPI_CLK_FREQ)
-            pll48.create_clkout(cd_usb_48, 48e6)
-            platform.add_period_constraint(cd_usb_48.clk, 1e9/48e6)
+            pll48.create_clkout(cd_usb_48, USBFS_CLK_FREQ)
+            platform.add_period_constraint(cd_usb_48.clk, 1e9/USBFS_CLK_FREQ)
+
+            usb_pll48_lock = Signal()
+            self.comb += [usb_pll48_lock.eq(pll48.locked),
+                          usb_rst.eq(~usb_pll48_lock | ulpi_phy_rst)]
 
             self.comb += [dbg_leds[0].eq(ResetSignal("sys")),
                           dbg_leds[1].eq(ulpi_phy_rst),

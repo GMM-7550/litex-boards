@@ -1,5 +1,6 @@
 TARGETS := cy7c1049
 TARGETS += ulpi_init_seq rst_delay
+TARGETS += usb_fs
 
 GHDL          := ghdl
 RM            := rm -f
@@ -8,6 +9,7 @@ VHDL_STANDARD := 08
 CC_LIB_FILES := gatemate_pkg.vhd
 
 VHDL_FILES := wb_ccserdes_reg.vhd serdes_reset_controller.vhd
+VHDL_FILES += $(wildcard gmm7550-usb/*.vhd)
 VHDL_FILES += $(addsuffix .vhd,$(TARGETS))
 
 CC_LIB_NAME := cc
