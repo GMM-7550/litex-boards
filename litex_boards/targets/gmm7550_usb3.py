@@ -259,6 +259,7 @@ class USB(LiteXModule):
             ulpi_dat_i = Signal(8);
             ulpi_dat_oe = Signal()
             ulpi_stp = Signal()
+            ulpi_init_done = Signal()
             self.comb += ulpi.stp.eq(ulpi_stp)
             self.specials += Instance("ulpi_init_seq",
                                       i_clk_i  = cd_ulpi.clk,
@@ -268,7 +269,8 @@ class USB(LiteXModule):
                                       o_stp    = ulpi_stp,
                                       o_dat_o  = ulpi_dat_o,
                                       o_dat_oe = ulpi_dat_oe,
-                                      i_dat_i  = ulpi_dat_i)
+                                      i_dat_i  = ulpi_dat_i,
+                                      o_done   = ulpi_init_done)
             self.specials += Tristate(ulpi.data, ulpi_dat_o, ulpi_dat_oe, ulpi_dat_i)
             platform.add_source(os.path.join(hdl_dir, "ulpi_init_seq.v"))
 
@@ -292,7 +294,7 @@ class USB(LiteXModule):
             self.comb += [dbg_leds[0].eq(ResetSignal("sys")),
                           dbg_leds[1].eq(ulpi_phy_rst),
                           dbg_leds[2].eq(usb_pll_rst),
-                          dbg_leds[3].eq(usb_pll48_lock)]
+                          dbg_leds[3].eq(ulpi_init_done)]
 
             # self.comb += [testpoints.cs_n.eq(1),
             #               testpoints.clk.eq(ClockSignal("usb_48")),

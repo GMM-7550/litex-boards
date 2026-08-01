@@ -25,7 +25,8 @@ entity ulpi_init_seq is
     stp    : out std_logic;
     dat_i  : in  std_logic_vector(7 downto 0);
     dat_o  : out std_logic_vector(7 downto 0);
-    dat_oe : out std_logic
+    dat_oe : out std_logic;
+    done   : out std_logic
     );
 end entity ulpi_init_seq;
 
@@ -139,6 +140,7 @@ begin
     ulpi_wr_start <= '0';
     ulpi_reg <= (others => '0');
     ulpi_dat <= (others => '0');
+    done <= '0';
 
     case init_fsm_state is
       when init_idle_st =>
@@ -178,6 +180,7 @@ begin
         end if;
 
       when init_done_st =>
+        done <= '1';
         init_fsm_next <= init_done_st;
 
       when others => null;
