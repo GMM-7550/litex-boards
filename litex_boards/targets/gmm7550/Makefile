@@ -9,7 +9,10 @@ VHDL_STANDARD := 08
 CC_LIB_FILES := gatemate_pkg.vhd
 
 VHDL_FILES := wb_ccserdes_reg.vhd serdes_reset_controller.vhd
-VHDL_FILES += $(wildcard gmm7550-usb/*.vhd)
+
+include gmm7550-usb/src_files.mk
+VHDL_FILES += $(addprefix gmm7550-usb/src/,$(SRC_FILES))
+
 VHDL_FILES += $(addsuffix .vhd,$(TARGETS))
 
 CC_LIB_NAME := cc
