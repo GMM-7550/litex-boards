@@ -275,10 +275,24 @@ class USB(LiteXModule):
             platform.add_source(os.path.join(hdl_dir, "ulpi_init_seq.v"))
 
             platform.add_source(os.path.join(hdl_dir, "usb_fs.v"))
+
             self.specials += Instance("usb_fs",
+                                      i_clk48    = ClockSignal("usb_48"),
+                                      i_reset    = usb_rst,
+                                      i_enable   = ulpi_init_done,
+
                                       i_ulpi_dir = ulpi.dir,
                                       i_phy_rst  = ulpi_phy_rst,
-                                      o_pll_rst  = usb_pll_rst)
+                                      o_pll_rst  = usb_pll_rst,
+
+                                      i_fs_rcv   = usb1.rcv,
+                                      io_fs_dp   = usb1.vp,
+                                      io_fs_dm   = usb1.vm,
+                                      o_fs_oen   = usb1.oe_n,
+                                      o_fs_con   = usb1.con,
+                                      o_fs_sus   = usb1.sus,
+                                      i_fs_bdet  = usb1.busdet
+                                      )
 
             self.cd_usb_48 = cd_usb_48 = ClockDomain("usb_48")
             self.pll48  = pll48  = GateMatePLL(perf_mode="speed")
